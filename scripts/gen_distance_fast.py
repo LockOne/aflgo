@@ -68,12 +68,15 @@ def merge_callgraphs(dots, outfilepath):
 
 
 def opt_callgraph(args, binary):
-    print(f"({STEP}) Constructing CG for {binary}..")
+    print(f"({STEP}) Constructing CG for {binary}")
     dot_files = args.temporary_directory / DOT_DIR_NAME
     prefix = dot_files / f"{binary.name}"
     cmd = ["opt", "-dot-callgraph", f"{binary}",
            "-callgraph-dot-filename-prefix", prefix,
            "-o", "/dev/null"]
+    for i in cmd:
+      print(i, end= " ")
+    print("")
     log_p = args.temporary_directory / f"step{STEP}.log"
     with log_p.open("w") as f:
         try:
@@ -88,7 +91,7 @@ def construct_callgraph(args, binaries):
     callgraph_out = dot_files / CALLGRAPH_NAME
 
     if fuzzer:
-        tmp = next(args.binaries_directory.glob(f"{fuzzer.name}.0.0.*.bc"))
+        tmp = next(args.binaries_directory.glob(f"{fuzzer.name}.bc"))
         binaries = [tmp]
 
     for binary in binaries:
@@ -98,6 +101,7 @@ def construct_callgraph(args, binaries):
         callgraph.replace(temp)     # return only works with py >= 3.8 :(
         remove_repeated_lines(temp, callgraph)
         temp.unlink()
+    
 
     # The goal is to have one file called "callgraph.dot"
     if fuzzer:
@@ -273,13 +277,17 @@ def main():
                         help="Use the python version for distance calculation")
     args = parser.parse_args()
 
+    if str(args.binaries_directory)[0] != '/' :
+      print("Need abs. path for binaries directory")
+      exit()
+
     # Additional sanity checks
-    binaries = list(args.binaries_directory.glob("*.0.0.*.bc"))
+    binaries = list(args.binaries_directory.glob("*.bc"))
     if len(binaries) == 0:
         parser.error("Couldn't find any binaries in folder "
                      f"{args.binaries_directory}.")
     if args.fuzzer_name:
-        tmp = args.binaries_directory.glob(f"{args.fuzzer_name}.0.0.*.bc")
+        tmp = args.binaries_directory.glob(f"{args.fuzzer_name}.bc")
         args.fuzzer_name = args.binaries_directory / args.fuzzer_name
         if not args.fuzzer_name.exists() or args.fuzzer_name.is_dir():
             parser.error(f"Couldn't find {args.fuzzer_name}.")

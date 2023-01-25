@@ -355,6 +355,12 @@ int main(int argc, char** argv) {
 
   edit_params(argc, argv);
 
+  unsigned int idx1 = 0;
+  for (idx1=  0; idx1 < cc_par_cnt; idx1++) {
+    printf("%s ", cc_params[idx1]);
+  }
+  printf("\n");
+
   execvp(cc_params[0], (char**)cc_params);
 
   FATAL("Oops, failed to execute '%s' - check your PATH", cc_params[0]);

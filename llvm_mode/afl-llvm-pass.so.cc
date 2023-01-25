@@ -183,6 +183,8 @@ bool AFLCoverage::runOnModule(Module &M) {
   bool is_aflgo = false;
   bool is_aflgo_preprocessing = false;
 
+  llvm::outs() << "Running afl-go instrumentation\n";
+
   if (!TargetsFile.empty() && !DistanceFile.empty()) {
     FATAL("Cannot specify both '-targets' and '-distance'!");
     return false;
@@ -395,7 +397,7 @@ bool AFLCoverage::runOnModule(Module &M) {
         /* Print CFG */
         std::string cfgFileName = dotfiles + "/cfg." + funcName + ".dot";
         std::error_code EC;
-        raw_fd_ostream cfgFile(cfgFileName, EC, sys::fs::F_None);
+        raw_fd_ostream cfgFile(cfgFileName, EC, sys::fs::OpenFlags::OF_None);
         if (!EC) {
           WriteGraph(cfgFile, &F, true);
         }
@@ -496,20 +498,20 @@ bool AFLCoverage::runOnModule(Module &M) {
 
         /* Load prev_loc */
 
-        LoadInst *PrevLoc = IRB.CreateLoad(AFLPrevLoc);
+        LoadInst *PrevLoc = IRB.CreateLoad(Int32Ty, AFLPrevLoc);
         PrevLoc->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
         Value *PrevLocCasted = IRB.CreateZExt(PrevLoc, IRB.getInt32Ty());
 
         /* Load SHM pointer */
 
-        LoadInst *MapPtr = IRB.CreateLoad(AFLMapPtr);
+        LoadInst *MapPtr = IRB.CreateLoad(PointerType::get(Int8Ty, 0), AFLMapPtr);
         MapPtr->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
         Value *MapPtrIdx =
-            IRB.CreateGEP(MapPtr, IRB.CreateXor(PrevLocCasted, CurLoc));
+            IRB.CreateGEP(Int8Ty, MapPtr, IRB.CreateXor(PrevLocCasted, CurLoc));
 
         /* Update bitmap */
 
-        LoadInst *Counter = IRB.CreateLoad(MapPtrIdx);
+        LoadInst *Counter = IRB.CreateLoad(IRB.getInt8Ty(), MapPtrIdx);
         Counter->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
         Value *Incr = IRB.CreateAdd(Counter, ConstantInt::get(Int8Ty, 1));
         IRB.CreateStore(Incr, MapPtrIdx)
@@ -529,8 +531,8 @@ bool AFLCoverage::runOnModule(Module &M) {
           /* Add distance to shm[MAPSIZE] */
 
           Value *MapDistPtr = IRB.CreateBitCast(
-              IRB.CreateGEP(MapPtr, MapDistLoc), LargestType->getPointerTo());
-          LoadInst *MapDist = IRB.CreateLoad(MapDistPtr);
+              IRB.CreateGEP(Int8Ty, MapPtr, MapDistLoc), LargestType->getPointerTo());
+          LoadInst *MapDist = IRB.CreateLoad(Int8Ty, MapDistPtr);
           MapDist->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
           Value *IncrDist = IRB.CreateAdd(MapDist, Distance);
@@ -540,8 +542,8 @@ bool AFLCoverage::runOnModule(Module &M) {
           /* Increase count at shm[MAPSIZE + (4 or 8)] */
 
           Value *MapCntPtr = IRB.CreateBitCast(
-              IRB.CreateGEP(MapPtr, MapCntLoc), LargestType->getPointerTo());
-          LoadInst *MapCnt = IRB.CreateLoad(MapCntPtr);
+              IRB.CreateGEP(Int8Ty, MapPtr, MapCntLoc), LargestType->getPointerTo());
+          LoadInst *MapCnt = IRB.CreateLoad(Int8Ty, MapCntPtr);
           MapCnt->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
           Value *IncrCnt = IRB.CreateAdd(MapCnt, One);
